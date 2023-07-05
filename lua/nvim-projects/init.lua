@@ -3,6 +3,7 @@ local scan_dir = require("plenary.scandir").scan_dir
 local M = {
   init_filename = nil,
   project_dirs = {},
+  after_jump = nil,
 }
 
 local function is_dir(path)
@@ -42,6 +43,28 @@ function M.setup(input_opts)
 
   opts.project_dirs = nil
 
+  if opts.after_jump then
+    if type(opts.after_jump) == "string" then
+      local command = opts.after_jump
+
+      M.after_jump = function(_)
+        vim.cmd(command)
+      end
+    elseif type(opts.after_jump) == "function" then
+      M.after_jump = opts.after_jump
+    else
+      vim.notify(
+        "Unexpected type of after_jump option: " .. type(opts.after_jump),
+        vim.log.levels.WARN,
+        {
+          title = "nvim-projects",
+        }
+      )
+    end
+
+    opts.after_jump = nil
+  end
+
   M.define_commands()
 
   -- There should be no keys left in the opts at this point
@@ -61,6 +84,9 @@ function M.jump_to(project)
     })
     return
   elseif type(projects[project]) == "table" then
+    -- This could be handled more gracefully by automatically giving the
+    -- project a unique name based on the parent directory, but I don't
+    -- currently have a use case for it
     vim.notify(
       'Found multiple paths for project "'
         .. project
@@ -89,6 +115,10 @@ function M.jump_to(project)
           title = "nvim-projects",
         })
       end
+    end
+
+    if M.after_jump then
+      M.after_jump(project_path)
     end
   end
 end
