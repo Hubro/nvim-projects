@@ -4,7 +4,7 @@
 Super simple Neovim plugin for quickly jumping to a project.
 
 Projects are found by recursively searching a list of project directories for
-any directory containing a ".git" directory, which are assumed to be projects.
+all directories containing a ".git" directory, which are assumed to be projects.
 
 ## Usage
 
