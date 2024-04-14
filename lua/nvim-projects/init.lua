@@ -29,7 +29,7 @@ function M.setup(input_opts)
     local normalized_path = vim.fs.normalize(path)
 
     if is_dir(normalized_path) then
-      table.insert(M.project_dirs, normalized_path)
+      table.insert(M.project_dirs, path)
     else
       -- vim.notify(
       --   "Directory " .. normalized_path .. " does not exist",
@@ -78,6 +78,9 @@ end
 function M.jump_to(project)
   local projects = M.gather_projects()
 
+  print("PROJECT: " .. vim.inspect(project))
+  print("PROJECTS: " .. vim.inspect(projects))
+
   if projects[project] == nil then
     vim.notify("Unknown project: " .. project, vim.log.levels.ERROR, {
       title = "nvim-projects",
@@ -89,9 +92,9 @@ function M.jump_to(project)
     -- currently have a use case for it
     vim.notify(
       'Found multiple paths for project "'
-        .. project
-        .. '":\n- '
-        .. table.concat(projects[project], "\n- "),
+      .. project
+      .. '":\n- '
+      .. table.concat(projects[project], "\n- "),
       vim.log.levels.ERROR,
       {
         title = "nvim-projects",
@@ -147,18 +150,20 @@ function M.gather_projects()
   end
 
   for _, project_dir in ipairs(M.project_dirs) do
-    scan_dir(project_dir, {
+    local abs_project_dir = vim.fs.normalize(project_dir)
+    scan_dir(abs_project_dir, {
       only_dirs = true,
       depth = 5,
       hidden = true,
       search_pattern = function(entry)
         return entry:sub(-5) == "/.git"
       end,
+      ---@param entry string
       on_insert = function(entry)
-        local path = entry:sub(1, -6)
-        local name = path:sub(#project_dir + 2, -1)
+        local path = entry:sub(1, -6) -- Strip the ".git/" part
+        local relative_path = path:sub(#abs_project_dir + 2, -1)
 
-        add_project(name, path)
+        add_project(project_dir .. "/" .. relative_path, path)
       end,
     })
   end
@@ -176,4 +181,5 @@ function M.define_commands()
     end,
   })
 end
+
 return M
