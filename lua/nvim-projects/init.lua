@@ -43,6 +43,11 @@ function M.setup(input_opts)
 
   opts.project_dirs = nil
 
+  if opts.exclude ~= nil then
+    M.exclude = opts.exclude
+  end
+  opts.exclude = nil
+
   if opts.after_jump then
     if type(opts.after_jump) == "string" then
       local command = opts.after_jump
@@ -77,9 +82,6 @@ end
 
 function M.jump_to(project)
   local projects = M.gather_projects()
-
-  print("PROJECT: " .. vim.inspect(project))
-  print("PROJECTS: " .. vim.inspect(projects))
 
   if projects[project] == nil then
     vim.notify("Unknown project: " .. project, vim.log.levels.ERROR, {
@@ -162,6 +164,15 @@ function M.gather_projects()
       on_insert = function(entry)
         local path = entry:sub(1, -6) -- Strip the ".git/" part
         local relative_path = path:sub(#abs_project_dir + 2, -1)
+
+        -- Simple substring search of excluded terms
+        if M.exclude then
+          for _, pattern in ipairs(M.exclude) do
+            if path:find(pattern, 1, true) then
+              return
+            end
+          end
+        end
 
         add_project(project_dir .. "/" .. relative_path, path)
       end,
