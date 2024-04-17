@@ -3,7 +3,9 @@ local scan_dir = require("plenary.scandir").scan_dir
 local M = {
   init_filename = nil,
   project_dirs = {},
+  exclude = {},
   after_jump = nil,
+  before_jump = nil,
 }
 
 local function is_dir(path)
@@ -48,26 +50,28 @@ function M.setup(input_opts)
   end
   opts.exclude = nil
 
-  if opts.after_jump then
-    if type(opts.after_jump) == "string" then
-      local command = opts.after_jump
+  for _, hook in ipairs({ "before_jump", "after_jump" }) do
+    if opts[hook] then
+      if type(opts[hook]) == "string" then
+        local command = opts[hook]
 
-      M.after_jump = function(_)
-        vim.cmd(command)
+        M[hook] = function(_)
+          vim.cmd(command)
+        end
+      elseif type(opts[hook]) == "function" then
+        M[hook] = opts[hook]
+      else
+        vim.notify(
+          "Unexpected type of " .. hook .. " option: " .. type(opts[hook]),
+          vim.log.levels.WARN,
+          {
+            title = "nvim-projects",
+          }
+        )
       end
-    elseif type(opts.after_jump) == "function" then
-      M.after_jump = opts.after_jump
-    else
-      vim.notify(
-        "Unexpected type of after_jump option: " .. type(opts.after_jump),
-        vim.log.levels.WARN,
-        {
-          title = "nvim-projects",
-        }
-      )
-    end
 
-    opts.after_jump = nil
+      opts[hook] = nil
+    end
   end
 
   M.define_commands()
@@ -104,6 +108,26 @@ function M.jump_to(project)
     )
   else
     local project_path = projects[project]
+
+    local buffers = vim.api.nvim_list_bufs()
+
+    -- Check for unsaved buffers before cleaning up
+    for _, buf in ipairs(buffers) do
+      if vim.api.nvim_buf_get_option(buf, "modified") then
+        vim.notify("Error: One or more unsaved buffers", vim.log.levels.ERROR, {
+          title = "nvim-projects",
+        })
+        return
+      end
+    end
+
+    if M.before_jump ~= nil then
+      M.before_jump()
+    end
+
+    for _, buf in ipairs(buffers) do
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
 
     vim.fn.chdir(project_path)
 
