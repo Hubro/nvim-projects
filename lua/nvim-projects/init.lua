@@ -162,45 +162,67 @@ function M.gather_projects()
   local projects = {}
 
   local function add_project(name, path)
-    if is_dir(path) then
-      if projects[name] == nil then
-        projects[name] = path
-      else
-        if type(projects[name]) ~= "table" then
-          projects[name] = { projects[name] }
-        end
-
-        table.insert(projects[name], path)
+    if projects[name] == nil then
+      projects[name] = path
+    else
+      if type(projects[name]) ~= "table" then
+        projects[name] = { projects[name] }
       end
+
+      table.insert(projects[name], path)
     end
   end
 
-  for _, project_dir in ipairs(M.project_dirs) do
-    local abs_project_dir = vim.fs.normalize(project_dir)
-    scan_dir(abs_project_dir, {
-      only_dirs = true,
-      depth = 5,
+  local function search(path)
+    local entries = {}
+
+    scan_dir(path, {
+      add_dirs = true,
+      depth = 1,
       hidden = true,
-      search_pattern = function(entry)
-        return entry:sub(-5) == "/.git"
-      end,
       ---@param entry string
       on_insert = function(entry)
-        local path = entry:sub(1, -6) -- Strip the ".git/" part
-        local relative_path = path:sub(#abs_project_dir + 2, -1)
-
         -- Simple substring search of excluded terms
         if M.exclude then
           for _, pattern in ipairs(M.exclude) do
-            if path:find(pattern, 1, true) then
+            if entry:find(pattern, 1, true) then
               return
             end
           end
         end
 
-        add_project(project_dir .. "/" .. relative_path, path)
+        table.insert(entries, entry)
       end,
     })
+
+    -- If this path contains a ".git" folder or file, it's a project
+    if vim.tbl_contains(entries, function(entry)
+          return entry:sub(-5) == "/.git"
+        end, { predicate = true }) then
+      local name = vim.fn.fnamemodify(path, ":~:")
+      add_project(name, path)
+      return
+    end
+
+    -- Otherwise, recurse into subdirectories
+    for _, entry in ipairs(entries) do
+      if is_dir(entry) == false then
+        goto continue
+      end
+
+      -- There won't be any projects inside hidden directories, so skip those
+      if vim.fn.fnamemodify(entry, ":t"):find(".", 1, true) == 1 then
+        goto continue
+      end
+
+      search(entry)
+
+      ::continue::
+    end
+  end
+
+  for _, path in ipairs(M.project_dirs) do
+    search(vim.fs.normalize(path))
   end
 
   return projects
