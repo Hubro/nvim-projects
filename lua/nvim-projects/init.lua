@@ -196,9 +196,7 @@ function M.gather_projects()
     })
 
     -- If this path contains a ".git" folder or file, it's a project
-    if vim.tbl_contains(entries, function(entry)
-          return entry:sub(-5) == "/.git"
-        end, { predicate = true }) then
+    if vim.tbl_contains(entries, path .. "/.git") then
       local name = vim.fn.fnamemodify(path, ":~:")
       add_project(name, path)
       return
